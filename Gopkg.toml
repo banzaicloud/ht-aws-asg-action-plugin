@@ -1,0 +1,11 @@
+[[constraint]]
+  name = "github.com/aws/aws-sdk-go"
+  version = "1.12.47"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/banzaicloud/hollowtrees"
+
+[[constraint]]
+  name = "github.com/sirupsen/logrus"
+  version = "1.0.4"

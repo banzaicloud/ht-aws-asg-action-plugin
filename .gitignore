@@ -1,0 +1,9 @@
+_state*
+.idea*
+.DS_Store
+bin/*
+.idea/
+conf/config.toml
+*.swp
+.ht-aws-asg-action-plugin
+ht-aws-asg-action-plugin
