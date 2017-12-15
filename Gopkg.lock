@@ -11,7 +11,7 @@
   branch = "master"
   name = "github.com/banzaicloud/hollowtrees"
   packages = ["action","actionserver","conf","recommender"]
-  revision = "94dd271cc34aa4136926912d22eef73ead8e940d"
+  revision = "26285d4ae245d9b5c92816847e87ad11f575b0f6"
 
 [[projects]]
   name = "github.com/fsnotify/fsnotify"
@@ -118,7 +118,7 @@
   branch = "master"
   name = "golang.org/x/text"
   packages = ["collate","collate/build","internal/colltab","internal/gen","internal/tag","internal/triegen","internal/ucd","language","secure/bidirule","transform","unicode/bidi","unicode/cldr","unicode/norm","unicode/rangetable"]
-  revision = "f21a4dfb5e38f5895301dc265a8def02365cc3d0"
+  revision = "73f72487b7d8a81970fbf571cd9b660d3d5e604c"
 
 [[projects]]
   branch = "master"
@@ -141,6 +141,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "a1ff66bd839d0c6375719ffbb03fc5c1bde69d9b4c07828c3328db73cab9731d"
+  inputs-digest = "f01c4746111ae28b49fb08993fb5cb785b97b8523ba0f37dffaf38a7d8249ba7"
   solver-name = "gps-cdcl"
   solver-version = 1

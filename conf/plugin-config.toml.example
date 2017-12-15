@@ -1,0 +1,14 @@
+#environment
+[dev]
+
+#logger settings
+logformat = "text"
+loglevel = "debug"
+
+# plugin settings
+[dev.plugin]
+port = "8888"
+
+# aws monitor settings
+[dev.aws]
+region = "eu-west-1"
