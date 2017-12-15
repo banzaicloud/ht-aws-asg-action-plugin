@@ -10,8 +10,14 @@
 [[projects]]
   branch = "master"
   name = "github.com/banzaicloud/hollowtrees"
-  packages = ["action","actionserver","conf","recommender"]
+  packages = ["action","actionserver"]
   revision = "26285d4ae245d9b5c92816847e87ad11f575b0f6"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/banzaicloud/spot-recommender"
+  packages = ["recommender"]
+  revision = "1dbfe5d2e502ec90b244821e65046b48ffd19dc0"
 
 [[projects]]
   name = "github.com/fsnotify/fsnotify"
@@ -141,6 +147,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "f01c4746111ae28b49fb08993fb5cb785b97b8523ba0f37dffaf38a7d8249ba7"
+  inputs-digest = "a9ff2c56e743cc3dd35e7a35ad7c03498012fa25d1149df0f954e93cee10d9d8"
   solver-name = "gps-cdcl"
   solver-version = 1

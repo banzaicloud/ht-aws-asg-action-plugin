@@ -10,7 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/banzaicloud/hollowtrees/recommender"
+	"github.com/banzaicloud/spot-recommender/recommender"
 	"github.com/sirupsen/logrus"
 )
 

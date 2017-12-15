@@ -5,14 +5,12 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
 	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/pricing"
-	"github.com/banzaicloud/hollowtrees/conf"
 	"github.com/sirupsen/logrus"
 )
 
@@ -45,7 +43,7 @@ var regionMap = map[string]string{
 	"us-west-2":      "US West (Oregon)",
 }
 
-var log *logrus.Entry
+var log = logrus.New().WithField("package", "recommender")
 var sess *session.Session
 
 func init() {
@@ -67,8 +65,6 @@ func (a ByNumericValue) Less(i, j int) bool {
 }
 
 func RecommendSpotInstanceTypes(region string, requestedAZs []string, baseInstanceType string) (AZRecommendation, error) {
-
-	log = conf.Logger().WithField("package", "recommender")
 
 	log.WithFields(logrus.Fields{
 		"region":             region,
