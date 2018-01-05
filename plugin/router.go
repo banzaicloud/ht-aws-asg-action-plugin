@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	as "github.com/banzaicloud/hollowtrees/actionserver"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/banzaicloud/ht-aws-asg-action-plugin/conf"
 	"github.com/sirupsen/logrus"
@@ -12,8 +13,9 @@ func init() {
 	log = conf.Logger().WithField("package", "plugin")
 }
 
-func RouteEvent(session *session.Session, name string, action string) error {
-	switch action {
+func RouteEvent(session *session.Session, event *as.AlertEvent) error {
+	name := event.Data["asg_name"]
+	switch event.EventType {
 	case "initializing":
 		if err := initializeASG(session, name); err != nil {
 			return err

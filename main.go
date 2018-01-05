@@ -24,7 +24,7 @@ type ASGAlertHandler struct {
 }
 
 func newASGAlertHandler() *ASGAlertHandler {
-	region := viper.GetString("dev.aws.region")
+	region := viper.GetString("plugin.region")
 	session, err := session.NewSession(&aws.Config{
 		Region: aws.String(region),
 	})
@@ -40,7 +40,7 @@ func newASGAlertHandler() *ASGAlertHandler {
 // Handle : dummy implementation that returns the alert event's name
 func (d *ASGAlertHandler) Handle(event *as.AlertEvent) (*as.ActionResult, error) {
 	fmt.Printf("got GRPC request, handling alert: %v\n", event)
-	err := plugin.RouteEvent(d.session, event.Resource.ResourceId, event.EventType)
+	err := plugin.RouteEvent(d.session, event)
 	if err != nil {
 		return nil, err
 	}
@@ -48,6 +48,7 @@ func (d *ASGAlertHandler) Handle(event *as.AlertEvent) (*as.ActionResult, error)
 }
 
 func main() {
-	fmt.Println("Starting Hollowtrees ActionServer")
-	as.Serve(newASGAlertHandler())
+	port := viper.GetInt("plugin.port")
+	fmt.Printf("Starting Hollowtrees ActionServer on port %d", port)
+	as.Serve(port, newASGAlertHandler())
 }
