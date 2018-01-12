@@ -18,29 +18,28 @@ func init() {
 	log = conf.Logger().WithField("package", "main")
 }
 
-// ASGAlertHandler : dummy implementation of AlertHandler
-type ASGAlertHandler struct {
-	session *session.Session
+type AlertHandler struct {
+	Router *plugin.EventRouter
 }
 
-func newASGAlertHandler() *ASGAlertHandler {
+func newAlertHandler() *AlertHandler {
 	region := viper.GetString("plugin.region")
 	session, err := session.NewSession(&aws.Config{
 		Region: aws.String(region),
 	})
 	if err != nil {
-		log.Error("Error creating session: ", err)
-		panic("couldn't create AWS session, cannot start plugin.")
+		log.Fatalf("couldn't create AWS session, cannot start plugin.\n", err)
 	}
-	return &ASGAlertHandler{
-		session: session,
+	return &AlertHandler{
+		Router: &plugin.EventRouter{
+			Session: session,
+		},
 	}
 }
 
-// Handle : dummy implementation that returns the alert event's name
-func (d *ASGAlertHandler) Handle(event *as.AlertEvent) (*as.ActionResult, error) {
+func (d *AlertHandler) Handle(event *as.AlertEvent) (*as.ActionResult, error) {
 	fmt.Printf("got GRPC request, handling alert: %v\n", event)
-	err := plugin.RouteEvent(d.session, event)
+	err := d.Router.RouteEvent(event)
 	if err != nil {
 		return nil, err
 	}
@@ -50,5 +49,5 @@ func (d *ASGAlertHandler) Handle(event *as.AlertEvent) (*as.ActionResult, error)
 func main() {
 	port := viper.GetInt("plugin.port")
 	fmt.Printf("Starting Hollowtrees ActionServer on port %d", port)
-	as.Serve(port, newASGAlertHandler())
+	as.Serve(port, newAlertHandler())
 }

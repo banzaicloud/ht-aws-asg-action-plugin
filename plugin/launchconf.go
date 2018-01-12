@@ -1,15 +1,14 @@
 package plugin
 
 import (
-	"sort"
-
-	"strconv"
-
 	"errors"
+	"sort"
+	"strconv"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
+	"github.com/banzaicloud/ht-aws-asg-action-plugin/util"
 	"github.com/banzaicloud/spot-recommender/recommender"
 	"github.com/sirupsen/logrus"
 )
@@ -153,10 +152,10 @@ func updateLaunchConfig(session *session.Session, name string) error {
 
 	var recommendation recommender.InstanceTypeInfo
 	if len(commonRecommendations) > 0 {
-		sort.Sort(sort.Reverse(ByCostScore(commonRecommendations)))
+		sort.Sort(sort.Reverse(util.ByCostScore(commonRecommendations)))
 		recommendation = commonRecommendations[0]
 	} else {
-		sort.Sort(sort.Reverse(ByCostScore(baseAzRecommendations)))
+		sort.Sort(sort.Reverse(util.ByCostScore(baseAzRecommendations)))
 		recommendation = baseAzRecommendations[0]
 	}
 

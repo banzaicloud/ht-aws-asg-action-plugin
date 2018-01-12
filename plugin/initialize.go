@@ -1,19 +1,15 @@
 package plugin
 
 import (
-	"time"
-
-	"strconv"
-	"strings"
-
-	"sort"
-
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/banzaicloud/ht-aws-asg-action-plugin/util"
 	"github.com/banzaicloud/spot-recommender/recommender"
 	"github.com/sirupsen/logrus"
 )
@@ -108,7 +104,7 @@ func initializeASG(session *session.Session, name string) error {
 			countInAZ = countInAZ + remainderCount
 		}
 		countsPerAz[az] = countInAZ
-		selectedInstanceTypes[az] = selectInstanceTypesByCost(recommendedTypes, countInAZ)
+		selectedInstanceTypes[az] = util.SelectCheapestRecommendations(recommendedTypes, countInAZ)
 		i++
 	}
 
@@ -171,29 +167,6 @@ func initializeASG(session *session.Session, name string) error {
 		time.Sleep(1 * time.Second)
 	}
 	return nil
-}
-
-type ByCostScore []recommender.InstanceTypeInfo
-
-func (a ByCostScore) Len() int      { return len(a) }
-func (a ByCostScore) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-func (a ByCostScore) Less(i, j int) bool {
-	costScore1, _ := strconv.ParseFloat(strings.Split(a[i].CostScore, " ")[0], 32)
-	costScore2, _ := strconv.ParseFloat(strings.Split(a[j].CostScore, " ")[0], 32)
-	return costScore1 < costScore2
-}
-
-func selectInstanceTypesByCost(recommendations []recommender.InstanceTypeInfo, nrOfInstances int64) []recommender.InstanceTypeInfo {
-	sort.Sort(sort.Reverse(ByCostScore(recommendations)))
-	if nrOfInstances < 2 || len(recommendations) < 2 {
-		return recommendations[:1]
-	} else if nrOfInstances < 9 || len(recommendations) < 3 {
-		return recommendations[:2]
-	} else if nrOfInstances < 20 || len(recommendations) < 4 {
-		return recommendations[:3]
-	} else {
-		return recommendations[:4]
-	}
 }
 
 func requestAndWaitSpotInstances(ec2Svc *ec2.EC2, name string, countsPerAZ map[string]int64, subnetsPerAZ map[string][]string, selectedInstanceTypes map[string][]recommender.InstanceTypeInfo, launchConfig autoscaling.LaunchConfiguration) ([]*string, error) {
@@ -286,7 +259,7 @@ func requestAndWaitSpotInstances(ec2Svc *ec2.EC2, name string, countsPerAZ map[s
 									DeviceIndex:              aws.Int64(0),
 									SubnetId:                 &subnet,
 									AssociatePublicIpAddress: launchConfig.AssociatePublicIpAddress,
-									Groups: launchConfig.SecurityGroups,
+									Groups:                   launchConfig.SecurityGroups,
 								},
 							},
 							EbsOptimized: launchConfig.EbsOptimized,

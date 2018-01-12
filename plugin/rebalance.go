@@ -3,13 +3,13 @@ package plugin
 import (
 	"errors"
 	"strings"
-
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/banzaicloud/ht-aws-asg-action-plugin/util"
 	"github.com/banzaicloud/spot-recommender/recommender"
 	"github.com/sirupsen/logrus"
 )
@@ -110,7 +110,7 @@ func rebalanceASG(session *session.Session, name string) error {
 			// TODO: selectInstanceTypesByCost will select 4 different types because it's 25
 
 			selectedInstanceTypes := make(map[string][]recommender.InstanceTypeInfo)
-			selectedInstanceTypes[stateInfo.az] = selectInstanceTypesByCost(recommendations[stateInfo.az], int64(len(instanceIdsOfType)))
+			selectedInstanceTypes[stateInfo.az] = util.SelectCheapestRecommendations(recommendations[stateInfo.az], int64(len(instanceIdsOfType)))
 			countsPerAz := make(map[string]int64)
 			countsPerAz[stateInfo.az] = int64(len(instanceIdsOfType))
 
