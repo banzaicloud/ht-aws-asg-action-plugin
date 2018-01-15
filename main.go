@@ -5,10 +5,12 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/autoscaling"
+	"github.com/aws/aws-sdk-go/service/ec2"
 	as "github.com/banzaicloud/hollowtrees/actionserver"
 	"github.com/banzaicloud/ht-aws-asg-action-plugin/conf"
-	"github.com/sirupsen/logrus"
 	"github.com/banzaicloud/ht-aws-asg-action-plugin/plugin"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
 
