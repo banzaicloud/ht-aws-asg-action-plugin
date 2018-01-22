@@ -32,25 +32,6 @@ func (d *EventRouter) RouteEvent(event *as.AlertEvent) error {
 		if err := a.SwapInstance(event.Data["instance_id"]); err != nil {
 			return err
 		}
-	case "initializing":
-		if err := initializeASG(d.Session, event.Data["asg_name"]); err != nil {
-			return err
-		}
-	case "upscaling":
-		if err := upscaleASG(d.Session, event.Data["asg_name"]); err != nil {
-			return err
-		}
-	case "downscaling":
-		if err := downscaleASG(d.Session, event.Data["asg_name"]); err != nil {
-			return err
-		}
-	case "rebalancing":
-		if err := rebalanceASG(d.Session, event.Data["asg_name"]); err != nil {
-			return err
-		}
 	}
-	//if err := updateLaunchConfig(d.Session, event.Data["asg_name"]); err != nil {
-	//	return err
-	//}
 	return nil
 }
