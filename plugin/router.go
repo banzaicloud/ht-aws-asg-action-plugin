@@ -29,7 +29,16 @@ func (d *EventRouter) RouteEvent(event *as.AlertEvent) error {
 			AsgSvc:  autoscaling.New(d.Session, aws.NewConfig()),
 			Ec2Svc:  ec2.New(d.Session, aws.NewConfig()),
 		}
-		if err := a.SwapInstance(event.Data["instance_id"]); err != nil {
+		if err := a.SwapInstance(event.Data); err != nil {
+			return err
+		}
+	case "prometheus.server.alert.SpotInstanceTooExpensive":
+		a := AsGroupController{
+			Session: d.Session,
+			AsgSvc:  autoscaling.New(d.Session, aws.NewConfig()),
+			Ec2Svc:  ec2.New(d.Session, aws.NewConfig()),
+		}
+		if err := a.SwapInstanceAndTerminate(event.Data); err != nil {
 			return err
 		}
 	}

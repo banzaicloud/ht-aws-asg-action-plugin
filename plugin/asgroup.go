@@ -29,8 +29,8 @@ type InstanceInfo struct {
 }
 
 // Detaches the instance from its auto scaling group and attaches a new one with a recommended instance type
-func (a *AsGroupController) SwapInstance(instanceId string) error {
-
+func (a *AsGroupController) SwapInstance(eventData map[string]string) error {
+	instanceId := eventData["instance_id"]
 	i, err := a.fetchInstanceInfo(instanceId)
 	if err != nil {
 		log.WithField("instanceId", instanceId).WithError(err).Errorf("failed to fetch instance info")
@@ -74,6 +74,24 @@ func (a *AsGroupController) SwapInstance(instanceId string) error {
 		return err
 	}
 
+	return nil
+}
+
+func (a *AsGroupController) SwapInstanceAndTerminate(eventData map[string]string) error {
+	err := a.SwapInstance(eventData)
+	if err != nil {
+		return err
+	}
+	instanceId := eventData["instance_id"]
+	_, err = a.Ec2Svc.TerminateInstances(&ec2.TerminateInstancesInput{
+		InstanceIds: aws.StringSlice([]string{instanceId}),
+	})
+	if err != nil {
+		log.WithFields(logrus.Fields{
+			"autoScalingGroup": eventData["asg_name"],
+			"instanceId":       instanceId,
+		}).WithError(err).Errorf("failed to terminate instance '%s'", instanceId)
+	}
 	return nil
 }
 
@@ -130,7 +148,7 @@ func (a *AsGroupController) detachInstance(i *InstanceInfo, asg *autoscaling.Gro
 		log.WithFields(logrus.Fields{
 			"autoScalingGroup": i.Asg,
 			"instanceId":       i.Id,
-		}).Infof("changed auto scaling group's min size to %d", *asg.MinSize - 1)
+		}).Infof("changed auto scaling group's min size to %d", *asg.MinSize-1)
 	}
 	_, err := a.AsgSvc.DetachInstances(&autoscaling.DetachInstancesInput{
 		AutoScalingGroupName:           asg.AutoScalingGroupName,
@@ -349,7 +367,7 @@ func (a *AsGroupController) requestAndWaitSpotInstance(recommendation *recommend
 			log.WithFields(logrus.Fields{
 				"autoScalingGroup": *asg.AutoScalingGroupName,
 				"instanceId":       i.Id,
-				"newInstanceId":	*instanceId,
+				"newInstanceId":    *instanceId,
 			}).Info("polling: instance status is unknown")
 		}
 		time.Sleep(1 * time.Second)
