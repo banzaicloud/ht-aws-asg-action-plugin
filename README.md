@@ -38,3 +38,10 @@ To run:
 `prometheus.server.alert.SpotTerminationNotice` - detaches the AWS instance from the auto scaling group that will be terminated, and starts a new instance with the same characteristics but with a different instance type and spot bid price that will be attached to the auto scaling group instead.
 
 `prometheus.server.alert.SpotInstanceTooExpensive` - same as above but terminates the instance after detaching it from the auto-scaling group. Can be used to change "expensive" instances to other instance types in an auto scaling group.
+
+### Default Hollowtrees plugins
+
+There are a few default Hollowtrees action plugins available:
+
+* Kubernetes action [plugin](https://github.com/banzaicloud/ht-k8s-action-plugin) to execute k8s operations (e.g. graceful drain)
+* AWS autoscaling group [plugin](https://github.com/banzaicloud/ht-aws-asg-action-plugin) to replace instances with a better cost or stability characteristics
