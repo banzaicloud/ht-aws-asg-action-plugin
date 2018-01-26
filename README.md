@@ -1,9 +1,10 @@
 ### AWS Autoscaling Hollowtrees action plugin
 
-This is an action plugin for the [Hollowtrees](https://github.com/banzaicloud/hollowtrees) project.
-It interacts with AWS auto scaling groups by changing instances to new ones with better cost or stability characteristics.
+This is an action plugin for the [Hollowtrees](https://github.com/banzaicloud/hollowtrees) project. Auto Scaling Groups helps to ensure that the correct number of Amazon EC2 instances are available to handle the load for the application. It can specify the minimum and maximum number of instances in each Auto Scaling group, and Auto Scaling ensures that the group never goes below or above this size. However, when working with spot instances ASG have limitations and these are handled by the plugin.
 
-When started it is listening on a GRPC interface and accepts Hollowtrees events.
+The plugin interacts with AWS auto scaling groups by changing instances to new ones with better `cost` or `stability` characteristics. 
+
+When started it is listening on a gRPC interface and accepts Hollowtrees events.
 
 ### Quick start
 
