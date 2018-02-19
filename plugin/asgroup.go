@@ -1,22 +1,25 @@
 package plugin
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/banzaicloud/ht-aws-asg-action-plugin/util"
-	"github.com/banzaicloud/spot-recommender/recommender"
+	"github.com/banzaicloud/ht-aws-asg-action-plugin/types"
 	log "github.com/sirupsen/logrus"
 )
 
 type AsGroupController struct {
-	Session *session.Session
-	AsgSvc  *autoscaling.AutoScaling
-	Ec2Svc  *ec2.EC2
+	Session        *session.Session
+	RecommenderURL string
+	AsgSvc         *autoscaling.AutoScaling
+	Ec2Svc         *ec2.EC2
 }
 
 type InstanceInfo struct {
@@ -165,26 +168,38 @@ func (a *AsGroupController) detachInstance(i *InstanceInfo, asg *autoscaling.Gro
 	return nil
 }
 
-func (a *AsGroupController) getRecommendation(i *InstanceInfo) (*recommender.InstanceTypeInfo, error) {
+func (a *AsGroupController) getRecommendation(i *InstanceInfo) (*types.InstanceTypeRecommendation, error) {
 	log.WithFields(log.Fields{
 		"autoScalingGroup": i.Asg,
 		"instanceId":       i.Id,
 	}).Infof("Getting recommendations in AZ '%s' for base instance type '%s'", i.Az, i.Type)
-	recommendations, err := recommender.RecommendSpotInstanceTypes(*a.Session.Config.Region, []string{i.Az}, i.Type)
+
+	if i.Type == "" {
+		return nil, errors.New("no instance type specified for recommendation")
+	}
+	fullRecommendationUrl := fmt.Sprintf("%s/api/v1/recommender/%s?baseInstanceType=%s", a.RecommenderURL, *a.Session.Config.Region, i.Type)
+	res, err := http.Get(fullRecommendationUrl)
 	if err != nil {
-		log.WithFields(log.Fields{
-			"autoScalingGroup": i.Asg,
-			"instanceId":       i.Id,
-		}).WithError(err).Error("couldn't get recommendations")
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	var recommendation *types.Recommendation
+	if res.StatusCode != http.StatusOK {
+		return nil, errors.New(fmt.Sprintf("Couldn't get recommendations: GET '%s': response code = '%s', expecting '200 OK'", fullRecommendationUrl, res.Status))
+	}
+	recommendation = new(types.Recommendation)
+	err = json.NewDecoder(res.Body).Decode(recommendation)
+	if err != nil {
 		return nil, err
 	}
 	log.WithFields(log.Fields{
 		"autoScalingGroup": i.Asg,
 		"instanceId":       i.Id,
-	}).Infof("Got recommendation: %#v", recommendations)
+	}).Infof("Got recommendation: %#v", recommendation)
+	selectedRecommendation := types.SelectCheapestRecommendation((*recommendation)[i.Az])
 
-	recommendation := util.SelectCheapestRecommendation(recommendations[i.Az])
-	return &recommendation, nil
+	return &selectedRecommendation, nil
 }
 
 func (a *AsGroupController) attachInstance(i *InstanceInfo, asg *autoscaling.Group, newInstanceId *string) error {
@@ -249,7 +264,7 @@ func (a *AsGroupController) fetchAsgInfo(name *string) (*autoscaling.Group, *aut
 
 }
 
-func (a *AsGroupController) requestAndWaitSpotInstance(recommendation *recommender.InstanceTypeInfo, i *InstanceInfo, asg *autoscaling.Group, lc *autoscaling.LaunchConfiguration) (*string, error) {
+func (a *AsGroupController) requestAndWaitSpotInstance(recommendation *types.InstanceTypeRecommendation, i *InstanceInfo, asg *autoscaling.Group, lc *autoscaling.LaunchConfiguration) (*string, error) {
 
 	requestSpotInput := ec2.RequestSpotInstancesInput{
 		InstanceCount: aws.Int64(1),

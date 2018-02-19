@@ -12,9 +12,10 @@ import (
 )
 
 var (
-	logLevel = flag.String("log.level", "info", "log level")
-	bindAddr = flag.String("bind.address", ":8080", "Bind address where the gRPC API is listening")
-	region   = flag.String("aws.region", "eu-west-1", "The AWS region where the plugin is working")
+	logLevel       = flag.String("log.level", "info", "log level")
+	bindAddr       = flag.String("bind.address", ":8080", "Bind address where the gRPC API is listening")
+	region         = flag.String("aws.region", "eu-west-1", "The AWS region where the plugin is working")
+	recommenderUrl = flag.String("recommender.url", "http://localhost:9090", "URL of the spot instance recommender")
 )
 
 func init() {
@@ -41,7 +42,8 @@ func newAlertHandler() *AlertHandler {
 	}
 	return &AlertHandler{
 		Router: &plugin.EventRouter{
-			Session: session,
+			Session:        session,
+			RecommenderURL: *recommenderUrl,
 		},
 	}
 }

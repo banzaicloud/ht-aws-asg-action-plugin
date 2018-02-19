@@ -1,14 +1,24 @@
-package util
+package types
 
 import (
 	"sort"
 	"strconv"
 	"strings"
-
-	"github.com/banzaicloud/spot-recommender/recommender"
 )
 
-type ByCostScore []recommender.InstanceTypeInfo
+type Recommendation map[string][]InstanceTypeRecommendation
+
+type InstanceTypeRecommendation struct {
+	InstanceTypeName   string `json:"InstanceTypeName"`
+	CurrentPrice       string `json:"CurrentPrice"`
+	AvgPriceFor24Hours string `json:"AvgPriceFor24Hours"`
+	OnDemandPrice      string `json:"OnDemandPrice"`
+	SuggestedBidPrice  string `json:"SuggestedBidPrice"`
+	CostScore          string `json:"CostScore"`
+	StabilityScore     string `json:"StabilityScore"`
+}
+
+type ByCostScore []InstanceTypeRecommendation
 
 func (a ByCostScore) Len() int      { return len(a) }
 func (a ByCostScore) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
@@ -18,12 +28,12 @@ func (a ByCostScore) Less(i, j int) bool {
 	return costScore1 < costScore2
 }
 
-func SelectCheapestRecommendation(recommendations []recommender.InstanceTypeInfo) recommender.InstanceTypeInfo {
+func SelectCheapestRecommendation(recommendations []InstanceTypeRecommendation) InstanceTypeRecommendation {
 	r := SelectCheapestRecommendations(recommendations, 1)
 	return r[0]
 }
 
-func SelectCheapestRecommendations(recommendations []recommender.InstanceTypeInfo, nrOfInstances int64) []recommender.InstanceTypeInfo {
+func SelectCheapestRecommendations(recommendations []InstanceTypeRecommendation, nrOfInstances int64) []InstanceTypeRecommendation {
 	sort.Sort(sort.Reverse(ByCostScore(recommendations)))
 	if nrOfInstances < 2 || len(recommendations) < 2 {
 		return recommendations[:1]
