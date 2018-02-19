@@ -7,6 +7,5 @@ RUN go build -o /bin/ht-aws-asg-action-plugin .
 
 FROM alpine:latest
 RUN apk update && apk add ca-certificates && rm -rf /var/cache/apk/*
-ADD ./conf/plugin-config.toml /conf/
 COPY --from=0 /bin/ht-aws-asg-action-plugin /bin
 ENTRYPOINT ["/bin/ht-aws-asg-action-plugin"]
