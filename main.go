@@ -1,21 +1,31 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	as "github.com/banzaicloud/hollowtrees/actionserver"
-	"github.com/banzaicloud/ht-aws-asg-action-plugin/conf"
 	"github.com/banzaicloud/ht-aws-asg-action-plugin/plugin"
-	"github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
+	log "github.com/sirupsen/logrus"
 )
 
-var log *logrus.Entry
+var (
+	logLevel = flag.String("log.level", "info", "log level")
+	bindAddr = flag.String("bind.address", ":8080", "Bind address where the gRPC API is listening")
+	region   = flag.String("aws.region", "eu-west-1", "The AWS region where the plugin is working")
+)
 
 func init() {
-	log = conf.Logger().WithField("package", "main")
+	flag.Parse()
+	parsedLevel, err := log.ParseLevel(*logLevel)
+	if err != nil {
+		log.WithError(err).Warnf("Couldn't parse log level, using default: %s", log.GetLevel())
+	} else {
+		log.SetLevel(parsedLevel)
+		log.Debugf("Set log level to %s", parsedLevel)
+	}
 }
 
 type AlertHandler struct {
@@ -23,9 +33,8 @@ type AlertHandler struct {
 }
 
 func newAlertHandler() *AlertHandler {
-	region := viper.GetString("plugin.region")
 	session, err := session.NewSession(&aws.Config{
-		Region: aws.String(region),
+		Region: aws.String(*region),
 	})
 	if err != nil {
 		log.Fatalf("couldn't create AWS session, cannot start plugin.\n", err)
@@ -47,7 +56,6 @@ func (d *AlertHandler) Handle(event *as.AlertEvent) (*as.ActionResult, error) {
 }
 
 func main() {
-	port := viper.GetInt("plugin.port")
-	fmt.Printf("Starting Hollowtrees ActionServer on port %d", port)
-	as.Serve(port, newAlertHandler())
+	fmt.Printf("Starting Hollowtrees ActionServer on %s\n", *bindAddr)
+	as.Serve(*bindAddr, newAlertHandler())
 }

@@ -6,18 +6,11 @@ import (
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	as "github.com/banzaicloud/hollowtrees/actionserver"
-	"github.com/banzaicloud/ht-aws-asg-action-plugin/conf"
-	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 type EventRouter struct {
 	Session *session.Session
-}
-
-var log *logrus.Entry
-
-func init() {
-	log = conf.Logger().WithField("package", "plugin")
 }
 
 func (d *EventRouter) RouteEvent(event *as.AlertEvent) error {

@@ -10,7 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/banzaicloud/ht-aws-asg-action-plugin/util"
 	"github.com/banzaicloud/spot-recommender/recommender"
-	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 type AsGroupController struct {
@@ -41,11 +41,11 @@ func (a *AsGroupController) SwapInstance(eventData map[string]string) error {
 	if err != nil {
 		return err
 	}
-	log.WithFields(logrus.Fields{
+	log.WithFields(log.Fields{
 		"autoScalingGroup": &asg.AutoScalingGroupName,
 		"instanceId":       instanceId,
 	}).Infof("Fetched auto scaling group info: %#v", *asg)
-	log.WithFields(logrus.Fields{
+	log.WithFields(log.Fields{
 		"autoScalingGroup": &asg.AutoScalingGroupName,
 		"instanceId":       instanceId,
 	}).Infof("Fetched launch config info: %#v", *lc)
@@ -62,7 +62,7 @@ func (a *AsGroupController) SwapInstance(eventData map[string]string) error {
 
 	newInstanceId, err := a.requestAndWaitSpotInstance(recommendation, i, asg, lc)
 	if err != nil {
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"autoScalingGroup": *asg.AutoScalingGroupName,
 			"instanceId":       instanceId,
 		}).WithError(err).Error("failed to request a new spot instance instead of the soon-to-be-terminated instance")
@@ -87,7 +87,7 @@ func (a *AsGroupController) SwapInstanceAndTerminate(eventData map[string]string
 		InstanceIds: aws.StringSlice([]string{instanceId}),
 	})
 	if err != nil {
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"autoScalingGroup": eventData["asg_name"],
 			"instanceId":       instanceId,
 		}).WithError(err).Errorf("failed to terminate instance '%s'", instanceId)
@@ -106,7 +106,7 @@ func (a *AsGroupController) fetchInstanceInfo(instanceId string) (*InstanceInfo,
 	}
 	asgName := *asInstances.AutoScalingInstances[0].AutoScalingGroupName
 	az := *asInstances.AutoScalingInstances[0].AvailabilityZone
-	log.WithFields(logrus.Fields{
+	log.WithFields(log.Fields{
 		"autoScalingGroup": asgName,
 		"instanceId":       instanceId,
 	}).Info("Found auto scaling group that contains instance")
@@ -139,13 +139,13 @@ func (a *AsGroupController) detachInstance(i *InstanceInfo, asg *autoscaling.Gro
 			MinSize:              aws.Int64(*asg.MinSize - 1),
 		})
 		if err != nil {
-			log.WithFields(logrus.Fields{
+			log.WithFields(log.Fields{
 				"autoScalingGroup": *asg.AutoScalingGroupName,
 				"instanceId":       i.Id,
 			}).WithError(err).Error("failed to change min size of auto scaling group")
 			return err
 		}
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"autoScalingGroup": i.Asg,
 			"instanceId":       i.Id,
 		}).Infof("changed auto scaling group's min size to %d", *asg.MinSize-1)
@@ -156,7 +156,7 @@ func (a *AsGroupController) detachInstance(i *InstanceInfo, asg *autoscaling.Gro
 		InstanceIds:                    aws.StringSlice([]string{i.Id}),
 	})
 	if err != nil {
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"autoScalingGroup": *asg.AutoScalingGroupName,
 			"instanceId":       i.Id,
 		}).WithError(err).Error("failed to detach instance")
@@ -166,19 +166,19 @@ func (a *AsGroupController) detachInstance(i *InstanceInfo, asg *autoscaling.Gro
 }
 
 func (a *AsGroupController) getRecommendation(i *InstanceInfo) (*recommender.InstanceTypeInfo, error) {
-	log.WithFields(logrus.Fields{
+	log.WithFields(log.Fields{
 		"autoScalingGroup": i.Asg,
 		"instanceId":       i.Id,
 	}).Infof("Getting recommendations in AZ '%s' for base instance type '%s'", i.Az, i.Type)
 	recommendations, err := recommender.RecommendSpotInstanceTypes(*a.Session.Config.Region, []string{i.Az}, i.Type)
 	if err != nil {
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"autoScalingGroup": i.Asg,
 			"instanceId":       i.Id,
 		}).WithError(err).Error("couldn't get recommendations")
 		return nil, err
 	}
-	log.WithFields(logrus.Fields{
+	log.WithFields(log.Fields{
 		"autoScalingGroup": i.Asg,
 		"instanceId":       i.Id,
 	}).Infof("Got recommendation: %#v", recommendations)
@@ -193,7 +193,7 @@ func (a *AsGroupController) attachInstance(i *InstanceInfo, asg *autoscaling.Gro
 		AutoScalingGroupName: asg.AutoScalingGroupName,
 	})
 	if err != nil {
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"autoScalingGroup": *asg.AutoScalingGroupName,
 			"instanceId":       i.Id,
 		}).WithError(err).Error("failed to attach instance to auto scaling group, terminating it")
@@ -201,14 +201,14 @@ func (a *AsGroupController) attachInstance(i *InstanceInfo, asg *autoscaling.Gro
 			InstanceIds: []*string{newInstanceId},
 		})
 		if tErr != nil {
-			log.WithFields(logrus.Fields{
+			log.WithFields(log.Fields{
 				"autoScalingGroup": *asg.AutoScalingGroupName,
 				"instanceId":       i.Id,
 			}).WithError(tErr).Errorf("failed to terminate instance '%s'", *newInstanceId)
 		}
 		return err
 	}
-	log.WithFields(logrus.Fields{
+	log.WithFields(log.Fields{
 		"autoScalingGroup": i.Asg,
 		"instanceId":       i.Id,
 		"newInstanceId":    *newInstanceId,
@@ -218,12 +218,12 @@ func (a *AsGroupController) attachInstance(i *InstanceInfo, asg *autoscaling.Gro
 		MinSize:              asg.MinSize,
 	})
 	if err != nil {
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"autoScalingGroup": *asg.AutoScalingGroupName,
 			"instanceId":       i.Id,
 		}).WithError(err).Error("couldn't change back min size of auto scaling group")
 	}
-	log.WithFields(logrus.Fields{
+	log.WithFields(log.Fields{
 		"autoScalingGroup": i.Asg,
 		"instanceId":       i.Id,
 		"newInstanceId":    *newInstanceId,
@@ -298,7 +298,7 @@ func (a *AsGroupController) requestAndWaitSpotInstance(recommendation *recommend
 		requestSpotInput.LaunchSpecification.Placement = placement
 	}
 
-	log.WithFields(logrus.Fields{
+	log.WithFields(log.Fields{
 		"autoScalingGroup": *asg.AutoScalingGroupName,
 		"instanceId":       i.Id,
 	}).Info("requesting spot instance with configuration:", requestSpotInput)
@@ -309,7 +309,7 @@ func (a *AsGroupController) requestAndWaitSpotInstance(recommendation *recommend
 	}
 	requestId := result.SpotInstanceRequests[0].SpotInstanceRequestId
 
-	log.WithFields(logrus.Fields{
+	log.WithFields(log.Fields{
 		"autoScalingGroup": *asg.AutoScalingGroupName,
 		"instanceId":       i.Id,
 	}).Infof("polling spot instance request '%s' until an instance id is provided", *requestId)
@@ -323,14 +323,14 @@ func (a *AsGroupController) requestAndWaitSpotInstance(recommendation *recommend
 		}
 		spotRequest := spotRequests.SpotInstanceRequests[0]
 		if spotRequest != nil && spotRequest.InstanceId != nil && *spotRequest.InstanceId != "" {
-			log.WithFields(logrus.Fields{
+			log.WithFields(log.Fields{
 				"autoScalingGroup": *asg.AutoScalingGroupName,
 				"instanceId":       i.Id,
 				"newInstanceId":    *spotRequest.InstanceId,
 			}).Infof("polling: instanceId in spot request '%s' is %s", *requestId, *spotRequest.InstanceId)
 			instanceId = spotRequest.InstanceId
 		} else {
-			log.WithFields(logrus.Fields{
+			log.WithFields(log.Fields{
 				"autoScalingGroup": *asg.AutoScalingGroupName,
 				"instanceId":       i.Id,
 			}).Infof("polling: instance id in spot request '%s' is null", *requestId)
@@ -339,7 +339,7 @@ func (a *AsGroupController) requestAndWaitSpotInstance(recommendation *recommend
 	}
 
 	// wait until the new instance reaches the running state because only running instances can be attached to an ASG
-	log.WithFields(logrus.Fields{
+	log.WithFields(log.Fields{
 		"autoScalingGroup": *asg.AutoScalingGroupName,
 		"instanceId":       i.Id,
 		"newInstanceId":    *instanceId,
@@ -354,7 +354,7 @@ func (a *AsGroupController) requestAndWaitSpotInstance(recommendation *recommend
 		}
 		if len(describeInstResult.InstanceStatuses) > 0 {
 			status := describeInstResult.InstanceStatuses[0]
-			log.WithFields(logrus.Fields{
+			log.WithFields(log.Fields{
 				"autoScalingGroup": *asg.AutoScalingGroupName,
 				"instanceId":       i.Id,
 				"newInstanceId":    *instanceId,
@@ -364,7 +364,7 @@ func (a *AsGroupController) requestAndWaitSpotInstance(recommendation *recommend
 				continue
 			}
 		} else {
-			log.WithFields(logrus.Fields{
+			log.WithFields(log.Fields{
 				"autoScalingGroup": *asg.AutoScalingGroupName,
 				"instanceId":       i.Id,
 				"newInstanceId":    *instanceId,

@@ -1,9 +1,0 @@
-#logger settings
-[log]
-    format = "text"
-    level = "debug"
-
-# plugin settings
-[plugin]
-    port = "8888"
-    region = "eu-west-1"
