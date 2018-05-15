@@ -19,22 +19,11 @@ func (d *EventRouter) RouteEvent(event *as.AlertEvent) error {
 	switch event.EventType {
 	case "prometheus.server.alert.SpotTerminationNotice":
 		a := AsGroupController{
-			Session:        d.Session,
-			RecommenderURL: d.RecommenderURL,
-			AsgSvc:         autoscaling.New(d.Session, aws.NewConfig()),
-			Ec2Svc:         ec2.New(d.Session, aws.NewConfig()),
+			Session: d.Session,
+			AsgSvc:  autoscaling.New(d.Session, aws.NewConfig()),
+			Ec2Svc:  ec2.New(d.Session, aws.NewConfig()),
 		}
-		if err := a.SwapInstance(event.Data); err != nil {
-			return err
-		}
-	case "prometheus.server.alert.SpotInstanceTooExpensive":
-		a := AsGroupController{
-			Session:        d.Session,
-			RecommenderURL: d.RecommenderURL,
-			AsgSvc:         autoscaling.New(d.Session, aws.NewConfig()),
-			Ec2Svc:         ec2.New(d.Session, aws.NewConfig()),
-		}
-		if err := a.SwapInstanceAndTerminate(event.Data); err != nil {
+		if err := a.DetachInstance(event.Data); err != nil {
 			return err
 		}
 	}

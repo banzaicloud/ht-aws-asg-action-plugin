@@ -1,23 +1,17 @@
 package plugin
 
 import (
-	"encoding/json"
 	"errors"
-	"fmt"
-	"net/http"
-	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/banzaicloud/ht-aws-asg-action-plugin/types"
 	log "github.com/sirupsen/logrus"
 )
 
 type AsGroupController struct {
 	Session        *session.Session
-	RecommenderURL string
 	AsgSvc         *autoscaling.AutoScaling
 	Ec2Svc         *ec2.EC2
 }
@@ -31,8 +25,8 @@ type InstanceInfo struct {
 	InstanceProfileArn string
 }
 
-// Detaches the instance from its auto scaling group and attaches a new one with a recommended instance type
-func (a *AsGroupController) SwapInstance(eventData map[string]string) error {
+// Detaches the instance from its auto scaling group and decreases the desired size
+func (a *AsGroupController) DetachInstance(eventData map[string]string) error {
 	instanceId := eventData["instance_id"]
 	i, err := a.fetchInstanceInfo(instanceId)
 	if err != nil {
@@ -40,7 +34,7 @@ func (a *AsGroupController) SwapInstance(eventData map[string]string) error {
 		return err
 	}
 
-	asg, lc, err := a.fetchAsgInfo(&i.Asg)
+	asg, err := a.fetchAsgInfo(&i.Asg)
 	if err != nil {
 		return err
 	}
@@ -48,40 +42,16 @@ func (a *AsGroupController) SwapInstance(eventData map[string]string) error {
 		"autoScalingGroup": &asg.AutoScalingGroupName,
 		"instanceId":       instanceId,
 	}).Infof("Fetched auto scaling group info: %#v", *asg)
-	log.WithFields(log.Fields{
-		"autoScalingGroup": &asg.AutoScalingGroupName,
-		"instanceId":       instanceId,
-	}).Infof("Fetched launch config info: %#v", *lc)
-
-	recommendation, err := a.getRecommendation(i)
-	if err != nil {
-		return err
-	}
 
 	err = a.detachInstance(i, asg)
 	if err != nil {
 		return err
 	}
-
-	newInstanceId, err := a.requestAndWaitSpotInstance(recommendation, i, asg, lc)
-	if err != nil {
-		log.WithFields(log.Fields{
-			"autoScalingGroup": *asg.AutoScalingGroupName,
-			"instanceId":       instanceId,
-		}).WithError(err).Error("failed to request a new spot instance instead of the soon-to-be-terminated instance")
-		return err
-	}
-
-	err = a.attachInstance(i, asg, newInstanceId)
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
-func (a *AsGroupController) SwapInstanceAndTerminate(eventData map[string]string) error {
-	err := a.SwapInstance(eventData)
+func (a *AsGroupController) DetachInstanceAndTerminate(eventData map[string]string) error {
+	err := a.DetachInstance(eventData)
 	if err != nil {
 		return err
 	}
@@ -168,224 +138,13 @@ func (a *AsGroupController) detachInstance(i *InstanceInfo, asg *autoscaling.Gro
 	return nil
 }
 
-func (a *AsGroupController) getRecommendation(i *InstanceInfo) (*types.InstanceTypeRecommendation, error) {
-	log.WithFields(log.Fields{
-		"autoScalingGroup": i.Asg,
-		"instanceId":       i.Id,
-	}).Infof("Getting recommendations in AZ '%s' for base instance type '%s'", i.Az, i.Type)
-
-	if i.Type == "" {
-		return nil, errors.New("no instance type specified for recommendation")
-	}
-	fullRecommendationUrl := fmt.Sprintf("%s/api/v1/recommender/%s?baseInstanceType=%s", a.RecommenderURL, *a.Session.Config.Region, i.Type)
-	res, err := http.Get(fullRecommendationUrl)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-
-	var recommendation *types.Recommendation
-	if res.StatusCode != http.StatusOK {
-		return nil, errors.New(fmt.Sprintf("Couldn't get recommendations: GET '%s': response code = '%s', expecting '200 OK'", fullRecommendationUrl, res.Status))
-	}
-	recommendation = new(types.Recommendation)
-	err = json.NewDecoder(res.Body).Decode(recommendation)
-	if err != nil {
-		return nil, err
-	}
-	log.WithFields(log.Fields{
-		"autoScalingGroup": i.Asg,
-		"instanceId":       i.Id,
-	}).Infof("Got recommendation: %#v", recommendation)
-	selectedRecommendation := types.SelectCheapestRecommendation((*recommendation)[i.Az])
-
-	return &selectedRecommendation, nil
-}
-
-func (a *AsGroupController) attachInstance(i *InstanceInfo, asg *autoscaling.Group, newInstanceId *string) error {
-	_, err := a.AsgSvc.AttachInstances(&autoscaling.AttachInstancesInput{
-		InstanceIds:          []*string{newInstanceId},
-		AutoScalingGroupName: asg.AutoScalingGroupName,
-	})
-	if err != nil {
-		log.WithFields(log.Fields{
-			"autoScalingGroup": *asg.AutoScalingGroupName,
-			"instanceId":       i.Id,
-		}).WithError(err).Error("failed to attach instance to auto scaling group, terminating it")
-		_, tErr := a.Ec2Svc.TerminateInstances(&ec2.TerminateInstancesInput{
-			InstanceIds: []*string{newInstanceId},
-		})
-		if tErr != nil {
-			log.WithFields(log.Fields{
-				"autoScalingGroup": *asg.AutoScalingGroupName,
-				"instanceId":       i.Id,
-			}).WithError(tErr).Errorf("failed to terminate instance '%s'", *newInstanceId)
-		}
-		return err
-	}
-	log.WithFields(log.Fields{
-		"autoScalingGroup": i.Asg,
-		"instanceId":       i.Id,
-		"newInstanceId":    *newInstanceId,
-	}).Info("attached instance to auto scaling group")
-	_, err = a.AsgSvc.UpdateAutoScalingGroup(&autoscaling.UpdateAutoScalingGroupInput{
-		AutoScalingGroupName: asg.AutoScalingGroupName,
-		MinSize:              asg.MinSize,
-	})
-	if err != nil {
-		log.WithFields(log.Fields{
-			"autoScalingGroup": *asg.AutoScalingGroupName,
-			"instanceId":       i.Id,
-		}).WithError(err).Error("couldn't change back min size of auto scaling group")
-	}
-	log.WithFields(log.Fields{
-		"autoScalingGroup": i.Asg,
-		"instanceId":       i.Id,
-		"newInstanceId":    *newInstanceId,
-	}).Infof("changed auto scaling group's min size to %d", *asg.MinSize)
-	return nil
-}
-
-func (a *AsGroupController) fetchAsgInfo(name *string) (*autoscaling.Group, *autoscaling.LaunchConfiguration, error) {
+func (a *AsGroupController) fetchAsgInfo(name *string) (*autoscaling.Group, error) {
 	asgs, err := a.AsgSvc.DescribeAutoScalingGroups(&autoscaling.DescribeAutoScalingGroupsInput{
 		AutoScalingGroupNames: []*string{name},
 	})
 	if err != nil {
-		return nil, nil, err
-	}
-	asg := asgs.AutoScalingGroups[0]
-	lcs, err := a.AsgSvc.DescribeLaunchConfigurations(&autoscaling.DescribeLaunchConfigurationsInput{
-		LaunchConfigurationNames: []*string{asg.LaunchConfigurationName},
-	})
-	if err != nil {
-		return nil, nil, err
-	}
-	return asg, lcs.LaunchConfigurations[0], nil
-
-}
-
-func (a *AsGroupController) requestAndWaitSpotInstance(recommendation *types.InstanceTypeRecommendation, i *InstanceInfo, asg *autoscaling.Group, lc *autoscaling.LaunchConfiguration) (*string, error) {
-
-	requestSpotInput := ec2.RequestSpotInstancesInput{
-		InstanceCount: aws.Int64(1),
-		SpotPrice:     &recommendation.OnDemandPrice,
-		LaunchSpecification: &ec2.RequestSpotLaunchSpecification{
-			EbsOptimized: lc.EbsOptimized,
-			InstanceType: &recommendation.InstanceTypeName,
-			ImageId:      lc.ImageId,
-			KeyName:      lc.KeyName,
-			Monitoring: &ec2.RunInstancesMonitoringEnabled{
-				Enabled: lc.InstanceMonitoring.Enabled,
-			},
-			NetworkInterfaces: []*ec2.InstanceNetworkInterfaceSpecification{
-				{
-					DeviceIndex:              aws.Int64(0),
-					SubnetId:                 &i.Subnet,
-					AssociatePublicIpAddress: lc.AssociatePublicIpAddress,
-					Groups:                   lc.SecurityGroups,
-				},
-			},
-		},
-	}
-
-	if lc.KernelId != nil && *lc.KernelId != "" {
-		requestSpotInput.LaunchSpecification.KernelId = lc.KernelId
-	}
-	if lc.RamdiskId != nil && *lc.RamdiskId != "" {
-		requestSpotInput.LaunchSpecification.RamdiskId = lc.RamdiskId
-	}
-	if lc.UserData != nil && *lc.UserData != "" {
-		requestSpotInput.LaunchSpecification.UserData = lc.UserData
-	}
-	if i.InstanceProfileArn != "" {
-		requestSpotInput.LaunchSpecification.IamInstanceProfile = &ec2.IamInstanceProfileSpecification{
-			Arn: &i.InstanceProfileArn,
-		}
-	}
-	if asg.PlacementGroup != nil || lc.PlacementTenancy != nil {
-		placement := &ec2.SpotPlacement{}
-		if asg.PlacementGroup != nil {
-			placement.GroupName = asg.PlacementGroup
-		}
-		if lc.PlacementTenancy != nil {
-			placement.Tenancy = lc.PlacementTenancy
-		}
-		requestSpotInput.LaunchSpecification.Placement = placement
-	}
-
-	log.WithFields(log.Fields{
-		"autoScalingGroup": *asg.AutoScalingGroupName,
-		"instanceId":       i.Id,
-	}).Info("requesting spot instance with configuration:", requestSpotInput)
-
-	result, err := a.Ec2Svc.RequestSpotInstances(&requestSpotInput)
-	if err != nil {
 		return nil, err
 	}
-	requestId := result.SpotInstanceRequests[0].SpotInstanceRequestId
+	return asgs.AutoScalingGroups[0], nil
 
-	log.WithFields(log.Fields{
-		"autoScalingGroup": *asg.AutoScalingGroupName,
-		"instanceId":       i.Id,
-	}).Infof("polling spot instance request '%s' until an instance id is provided", *requestId)
-	var instanceId *string
-	for instanceId == nil {
-		spotRequests, err := a.Ec2Svc.DescribeSpotInstanceRequests(&ec2.DescribeSpotInstanceRequestsInput{
-			SpotInstanceRequestIds: []*string{requestId},
-		})
-		if err != nil {
-			return nil, err
-		}
-		spotRequest := spotRequests.SpotInstanceRequests[0]
-		if spotRequest != nil && spotRequest.InstanceId != nil && *spotRequest.InstanceId != "" {
-			log.WithFields(log.Fields{
-				"autoScalingGroup": *asg.AutoScalingGroupName,
-				"instanceId":       i.Id,
-				"newInstanceId":    *spotRequest.InstanceId,
-			}).Infof("polling: instanceId in spot request '%s' is %s", *requestId, *spotRequest.InstanceId)
-			instanceId = spotRequest.InstanceId
-		} else {
-			log.WithFields(log.Fields{
-				"autoScalingGroup": *asg.AutoScalingGroupName,
-				"instanceId":       i.Id,
-			}).Infof("polling: instance id in spot request '%s' is null", *requestId)
-		}
-		time.Sleep(1 * time.Second)
-	}
-
-	// wait until the new instance reaches the running state because only running instances can be attached to an ASG
-	log.WithFields(log.Fields{
-		"autoScalingGroup": *asg.AutoScalingGroupName,
-		"instanceId":       i.Id,
-		"newInstanceId":    *instanceId,
-	}).Info("polling status of new instance until it's running")
-	var running bool
-	for !running {
-		describeInstResult, err := a.Ec2Svc.DescribeInstanceStatus(&ec2.DescribeInstanceStatusInput{
-			InstanceIds: []*string{instanceId},
-		})
-		if err != nil {
-			return nil, err
-		}
-		if len(describeInstResult.InstanceStatuses) > 0 {
-			status := describeInstResult.InstanceStatuses[0]
-			log.WithFields(log.Fields{
-				"autoScalingGroup": *asg.AutoScalingGroupName,
-				"instanceId":       i.Id,
-				"newInstanceId":    *instanceId,
-			}).Infof("instance is %s", *status.InstanceState.Name)
-			if *status.InstanceState.Name == "running" {
-				running = true
-				continue
-			}
-		} else {
-			log.WithFields(log.Fields{
-				"autoScalingGroup": *asg.AutoScalingGroupName,
-				"instanceId":       i.Id,
-				"newInstanceId":    *instanceId,
-			}).Info("polling: instance status is unknown")
-		}
-		time.Sleep(1 * time.Second)
-	}
-	return instanceId, nil
 }
